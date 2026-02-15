@@ -2,8 +2,13 @@ import json
 import threading
 import urllib.request
 import urllib.error
+import uuid
+import platform
 from datetime import datetime, timezone
 from typing import Optional
+
+# Version tracking
+__version__ = "0.1.0"
 
 class ProVitClient:
     """
@@ -12,7 +17,7 @@ class ProVitClient:
     A lightweight, thread-safe, fire-and-forget SDK for capturing AI evidence.
     """
     
-    def __init__(self, api_key: str, api_url: str = "https://api.provit.ai", debug: bool = False):
+    def __init__(self, api_key: str, api_url: str = "https://api.provit.ai", debug: bool = False, normalize_labels: bool = True):
         """
         Initialize the ProVit SDK Client.
         
@@ -20,11 +25,13 @@ class ProVitClient:
             api_key (str): The API key for authentication.
             api_url (str): The base URL of the ProVit platform.
             debug (bool): If True, prints errors to stderr. Default False.
+            normalize_labels (bool): If True, converts all labels to lowercase. Default True.
         """
         self.api_key = api_key
         self.api_url = api_url.rstrip('/')
         self.endpoint = f"{self.api_url}/v1/events"
         self.debug = debug
+        self.normalize_labels = normalize_labels
 
     def ai_runtime(
         self, 
@@ -49,18 +56,29 @@ class ProVitClient:
             confidence_score (float): The model's confidence (0.0 - 1.0).
         """
         try:
-            # Construct the canonical event structure
+            # 1. Normalize Label (if enabled)
+            processed_label = str(label)
+            if self.normalize_labels:
+                processed_label = processed_label.lower().strip()
+
+            # 2. Construct the canonical event structure
             payload = {
+                "event_id": str(uuid.uuid4()),  # Unique ID for this specific evidence event
                 "event_type": "ai.runtime",
                 "decision_id": decision_id,
                 "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+                "meta": {
+                    "sdk_version": __version__,
+                    "language": "python",
+                    "python_version": platform.python_version()
+                },
                 "payload": {
                     "model": {
                         "name": model_name,
                         "version": model_version
                     },
                     "recommendation": {
-                        "label": str(label),
+                        "label": processed_label,
                         "confidence_score": float(confidence_score)
                     }
                 }
