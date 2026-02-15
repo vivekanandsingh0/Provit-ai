@@ -125,5 +125,56 @@ class TestProVitSDK(unittest.TestCase):
         self.assertIsInstance(rec['confidence_score'], float)
         self.assertEqual(rec['confidence_score'], 0.88)
 
+    def test_normalization(self):
+        """Test that labels are normalized to lowercase by default."""
+        self.client.ai_runtime(
+            decision_id="norm-test",
+            model_name="m", model_version="v",
+            label="  APPROVE  ", # Mixed case with spaces
+            confidence_score=0.9
+        )
+        
+        time.sleep(0.5)
+        event = RECEIVED_EVENTS[0]['data']
+        self.assertEqual(event['payload']['recommendation']['label'], "approve")
+
+    def test_normalization_disabled(self):
+        """Test that labels are preserved if normalization is disabled."""
+        client = ProVitClient(
+            api_key="key", 
+            api_url=f"http://127.0.0.1:{self.test_port}",
+            debug=True,
+            normalize_labels=False
+        )
+        client.ai_runtime(
+            decision_id="raw-test",
+            model_name="m", model_version="v",
+            label="  APPROVE  ", 
+            confidence_score=0.9
+        )
+        
+        time.sleep(0.5)
+        event = RECEIVED_EVENTS[0]['data']
+        self.assertEqual(event['payload']['recommendation']['label'], "  APPROVE  ")
+
+    def test_metadata_and_ids(self):
+        """Test that event_id and meta block are present."""
+        self.client.ai_runtime(
+            decision_id="meta-test",
+            model_name="m", model_version="v", label="l", confidence_score=0.5
+        )
+        
+        time.sleep(0.5)
+        event = RECEIVED_EVENTS[0]['data']
+        
+        # Check Event ID (UUID4)
+        self.assertIn('event_id', event)
+        self.assertEqual(len(event['event_id']), 36) # UUID string length
+        
+        # Check Meta
+        self.assertIn('meta', event)
+        self.assertEqual(event['meta']['language'], "python")
+        self.assertEqual(event['meta']['sdk_version'], "0.1.0")
+
 if __name__ == '__main__':
     unittest.main()

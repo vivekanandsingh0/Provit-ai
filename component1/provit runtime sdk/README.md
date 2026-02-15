@@ -1,85 +1,90 @@
-# ProVit AI Runtime SDK (v0)
+# ProVit AI Runtime SDK
 
-A lightweight, non-blocking Python SDK for capturing AI runtime evidence. Designed for high-assurance environments where model decisions must be auditable without impacting inference latency.
+A lightweight, fire-and-forget Python SDK for capturing AI runtime evidence. Designed for high-assurance environments where model decisions must be auditable without standard logging overhead or latency impact.
 
 ## Features
-- **Fire-and-Forget:** Minimal latency overhead (<1ms typical).
-- **Fail-Safe:** Never crashes the host application; network errors are silently suppressed.
-- **Zero Dependencies:** Uses only the Python standard library.
-- **Thread-Safe:** Dispatches events asynchronously on a daemon thread.
+- **Zero Latency Impact:** Dispatches events asynchronously on a background thread (<1ms blocking time).
+- **Fail-Safe:** Never crashes the host application; network errors are silently suppressed by default.
+- **Traceability:** Automatically generates unique `event_id` and captures metadata (SDK version, Python version).
+- **Normalization:** Automatically standardizes labels (e.g., "Approve" -> "approve") for consistent analytics.
 
 ## Installation
 
-### From Source (Development)
+### Method 1: Local Development (Editable)
+Use this if you are developing the SDK or if the source code is on your machine.
 ```bash
-cd component1
+cd "component1/provit runtime sdk"
 pip install -e .
 ```
 
-### Usage
+### Method 2: Production / Other Machines
+Copy the SDK folder to your target machine and install it:
+```bash
+pip install .
+```
+*(Or install directly from git if hosted: `pip install git+https://github.com/your-org/provit-ai-sdk.git`)*
+
+## Integration Guide
+
+### 1. Initialize the Client
+Create the client once when your application starts (e.g., in your `main.py` or service initialization).
 
 ```python
 from provit_sdk import ProVitClient
 
-# 1. Initialize the Client
-client = ProVitClient(
-    api_key="your-api-key",
-    api_url="https://api.provit.ai", # Or your internal endpoint
-    debug=True # Set to False in production to suppress error logs
-)
-
-# 2. Capture Evidence (Non-blocking)
-client.ai_runtime(
-    decision_id="txn-123456",
-    model_name="fraud_detection_model",
-    model_version="v1.0.0",
-    label="approve",
-    confidence_score=0.98
+# Initialize with your API Key and Endpoint
+provit_client = ProVitClient(
+    api_key="your-production-key",
+    api_url="https://api.provit.ai",  # Or your internal receiver
+    debug=True,                       # Set False in production
+    normalize_labels=True             # Auto-lowercase labels? (Default: True)
 )
 ```
 
-## Development & Testing
+### 2. Instrumentalize Your Model
+Call `ai_runtime()` immediately after your model makes a prediction.
 
-This repository includes a mock server and test suite to verify integration without hitting the real ProVit API.
+```python
+def predict(user_data):
+    # ... your AI model logic ...
+    decision = model.predict(user_data)
+    confidence = model.predict_proba(user_data)
+    
+    # --- Capture Evidence ---
+    provit_client.ai_runtime(
+        decision_id="txn-12345",        # Unique ID from your business logic
+        model_name="credit-scoring-v1", # Model Identity
+        model_version="1.0.0",          
+        label=decision,                 # Result (e.g., "Approved")
+        confidence_score=confidence     # Probability (0.0 - 1.0)
+    )
+    
+    return decision
+```
 
-### 1. Run the Mock Server
-Start the server in one terminal window. It mimics the ProVit ingestion endpoint on `http://localhost:8080`.
+## Testing & Verification
 
+This SDK includes a **Mock Server** to verify integration locally without needing the real ProVit cloud.
+
+### Step 1: Start the Mock Server
+Open a terminal and run:
 ```bash
 python mock_provit_server.py
 ```
+*It will listen on `http://localhost:8080`.*
 
-### 2. Run the Example Script
-In a separate terminal, run the usage example. You should see the evidence appear in the server logs.
-
+### Step 2: Run a Test Script
+In another terminal, run your application or the included example:
 ```bash
 python example_usage.py
 ```
 
-### 3. Run Unit Tests
-Execute the self-contained test suite, which verifies threading, fail-safe behavior, and data formatting.
+You should see the JSON evidence appear in the server terminal, confirming the pipeline works.
 
-```bash
-python test_provit_sdk.py
-```
-
-## Evidence Structure
-The SDK emits events in the following canonical JSON format:
-
-```json
-{
-  "event_type": "ai.runtime",
-  "decision_id": "txn-123456",
-  "timestamp": "2026-02-15T10:30:00Z",
-  "payload": {
-    "model": {
-      "name": "fraud_detection_model",
-      "version": "v1.0.0"
-    },
-    "recommendation": {
-      "label": "approve",
-      "confidence_score": 0.98
-    }
-  }
-}
-```
+## Configuration Options
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `api_key` | Required | Your authentication token. |
+| `api_url` | `https://api.provit.ai` | The endpoint specific to your environment. |
+| `debug` | `False` | If `True`, prints connection errors to stderr. |
+| `normalize_labels` | `True` | If `True`, converts labels to lowercase stripped strings. |

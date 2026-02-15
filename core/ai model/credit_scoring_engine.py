@@ -1,0 +1,74 @@
+
+import joblib
+import pandas as pd
+import numpy as np
+import os
+import uuid
+import datetime
+
+MODEL_PATH = "loan_risk_model.pkl"
+
+class CreditScoringEngine:
+    """
+    Production-grade inference engine for evaluating credit risk.
+    Loads trained model and serves predictions.
+    """
+    
+    def __init__(self, model_path=MODEL_PATH):
+        self.model_path = model_path
+        if not os.path.exists(self.model_path):
+            raise FileNotFoundError(f"Model artifact '{self.model_path}' missing. Please train model first.")
+        
+        print(f"[CreditEngine] Loading Model v1.0 from {self.model_path}...")
+        self.model = joblib.load(self.model_path)
+        self.model_version = "v1.0.0" # Hardcoded for now, should come from metadata
+        self.model_name = "random_forest_credit_risk"
+
+    def evaluate_applicant(self, applicant_id: str, income: float, fico: int, dti: float, amount: float):
+        """
+        Evaluates a single loan application.
+        Returns: decision (str), confidence (float), details (dict)
+        """
+        print(f"\n[CreditEngine] Evaluating Applicant {applicant_id}...")
+    
+        # Construct DataFrame (must match training schema exactly)
+        input_data = pd.DataFrame([{
+            'annual_income': income,
+            'fico_score': fico,
+            'dti_ratio': dti,
+            'loan_amount': amount
+        }])
+        
+        # 1. Inference
+        prob_default = self.model.predict_proba(input_data)[0][1]
+        prediction = self.model.predict(input_data)[0]
+        
+        # 2. Business Logic Wrapper
+        decision = "REJECTED" if prediction == 1 else "APPROVED"
+        risk_level = "High" if prob_default > 0.5 else "Low"
+        
+        # 3. Log Output
+        print(f"  > Decision: {decision} ({risk_level} Risk)")
+        print(f"  > Default Probability: {prob_default:.4f}")
+        
+        return {
+            "applicant_id": applicant_id,
+            "decision": decision,
+            "confidence_score": float(prob_default), # Probability of default is our 'confidence' metric for risk
+            "risk_model_version": self.model_version,
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+
+if __name__ == "__main__":
+    # --- Integration Test / Simulation ---
+    engine = CreditScoringEngine()
+    
+    # Simulate incoming loan requests
+    scenarios = [
+        ("app-001-Alice", 120000, 780, 0.15, 20000), # Perfect
+        ("app-002-Bob",    35000, 610, 0.55, 15000), # High Risk
+        ("app-003-Charlie",65000, 670, 0.42, 30000)  # Borderline
+    ]
+
+    for app_id, inc, fico, dti, amt in scenarios:
+        result = engine.evaluate_applicant(app_id, inc, fico, dti, amt)
