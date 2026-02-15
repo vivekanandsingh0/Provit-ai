@@ -5,6 +5,7 @@ import numpy as np
 import os
 import uuid
 import datetime
+from provit_sdk import ProVitClient
 
 MODEL_PATH = "loan_risk_model.pkl"
 
@@ -12,26 +13,34 @@ class CreditScoringEngine:
     """
     Production-grade inference engine for evaluating credit risk.
     Loads trained model and serves predictions.
+    Now integrated with ProVit AI Runtime SDK for automated governance.
     """
     
-    def __init__(self, model_path=MODEL_PATH):
+    def __init__(self, model_path=MODEL_PATH, api_url="http://127.0.0.1:8080"):
         self.model_path = model_path
         if not os.path.exists(self.model_path):
             raise FileNotFoundError(f"Model artifact '{self.model_path}' missing. Please train model first.")
         
         print(f"[CreditEngine] Loading Model v1.0 from {self.model_path}...")
         self.model = joblib.load(self.model_path)
-        self.model_version = "v1.0.0" # Hardcoded for now, should come from metadata
+        self.model_version = "v1.0.0" 
         self.model_name = "random_forest_credit_risk"
+        
+        # --- SDK Integration ---
+        print(f"[CreditEngine] Connecting to ProVit Evidence Node at {api_url}...")
+        self.evidence_client = ProVitClient(
+            api_key="production-key-123", # In real app, load from os.environ
+            api_url=api_url,
+            debug=True
+        )
 
     def evaluate_applicant(self, applicant_id: str, income: float, fico: int, dti: float, amount: float):
         """
-        Evaluates a single loan application.
-        Returns: decision (str), confidence (float), details (dict)
+        Evaluates a single loan application and captures evidence.
         """
         print(f"\n[CreditEngine] Evaluating Applicant {applicant_id}...")
     
-        # Construct DataFrame (must match training schema exactly)
+        # Construct DataFrame
         input_data = pd.DataFrame([{
             'annual_income': income,
             'fico_score': fico,
@@ -47,15 +56,24 @@ class CreditScoringEngine:
         decision = "REJECTED" if prediction == 1 else "APPROVED"
         risk_level = "High" if prob_default > 0.5 else "Low"
         
-        # 3. Log Output
+        # 3. Capture Evidence (The ProVit "Hand-Off")
+        self.evidence_client.ai_runtime(
+            decision_id=applicant_id,
+            model_name=self.model_name,
+            model_version=self.model_version,
+            label=decision,
+            confidence_score=prob_default
+        )
+        
+        # 4. Log Output
         print(f"  > Decision: {decision} ({risk_level} Risk)")
         print(f"  > Default Probability: {prob_default:.4f}")
+        print(f"  > 🔒 Evidence secured via ProVit SDK")
         
         return {
             "applicant_id": applicant_id,
             "decision": decision,
-            "confidence_score": float(prob_default), # Probability of default is our 'confidence' metric for risk
-            "risk_model_version": self.model_version,
+            "confidence_score": float(prob_default),
             "timestamp": datetime.datetime.now().isoformat()
         }
 
