@@ -1,0 +1,290 @@
+ProVit AI Runtime SDK (v0) — Documentation
+Component
+
+Evidence Event Standard → AI Runtime SDK
+
+Version
+
+v0.1 (Core Minimal Runtime Evidence Capture)
+
+1. Overview
+
+ProVit AI Runtime SDK is the first building block of the ProVit Decision Evidence Platform.
+
+It enables organizations to capture AI recommendation evidence at runtime in a decision-scoped, audit-ready format — without disrupting model execution.
+
+This SDK is designed to be:
+
+lightweight
+
+safe in production
+
+non-blocking
+
+integration-friendly
+
+enterprise-neutral
+
+2. Purpose
+
+AI systems are increasingly influencing high-impact enterprise decisions.
+
+However, enterprises often cannot answer:
+
+Which model produced this recommendation?
+
+What was the AI output?
+
+How confident was the AI?
+
+Can this decision be reconstructed later?
+
+The AI Runtime SDK solves this by capturing the minimum evidence required to prove:
+
+✅ AI involvement
+✅ Recommendation output
+✅ Model identity
+✅ Decision reconstructability
+
+3. Scope of v0
+
+The AI Runtime SDK v0 captures only:
+
+Model Identity Evidence
+
+model name
+
+model version
+
+Recommendation Evidence
+
+output label
+
+confidence score
+
+No additional features are included in v0.
+
+This ensures:
+
+minimal integration effort
+
+zero runtime risk
+
+scalable foundation
+
+4. Design Principles
+4.1 Minimal Evidence, Maximum Value
+
+The SDK captures only the core facts required for governance:
+
+who the model is
+
+what it recommended
+
+how confident it was
+
+4.2 Decision-Scoped by Default
+
+Every AI runtime event must belong to a business decision.
+
+The SDK requires:
+
+decision_id
+
+This enables ProVit to reconstruct decision timelines later.
+
+4.3 Non-Blocking and Safe
+
+The SDK operates asynchronously.
+
+It must never:
+
+slow down inference
+
+block execution
+
+crash the AI system
+
+If ProVit is unreachable, the AI continues normally.
+
+5. What the SDK Captures
+Evidence Fields (v0)
+Evidence Category	Field
+Decision Scope	decision_id
+Model Identity	model_name, model_version
+Recommendation Output	label, confidence_score
+Timestamp	auto-generated
+6. Event Type Emitted
+
+The SDK emits only one event type:
+
+ai.runtime
+
+This represents:
+
+“An AI model produced a recommendation for a decision at runtime.”
+
+7. Event Structure
+7.1 Canonical Runtime Event Format
+{
+  "event_type": "ai.runtime",
+  "decision_id": "d-8829",
+  "timestamp": "2026-02-15T10:30:00Z",
+  "payload": {
+    "model": {
+      "name": "credit_risk_model",
+      "version": "v1.0"
+    },
+    "recommendation": {
+      "label": "approve",
+      "confidence_score": 0.82
+    }
+  }
+}
+
+8. SDK Public API
+8.1 Core Method
+
+The SDK exposes one simple method:
+
+ai_runtime(
+    decision_id: str,
+    model_name: str,
+    model_version: str,
+    label: str,
+    confidence_score: float
+)
+
+8.2 Example Usage
+from provit_sdk import ProVitClient
+
+client = ProVitClient()
+
+client.ai_runtime(
+    decision_id="d-8829",
+    model_name="credit_risk_model",
+    model_version="v1.0",
+    label="approve",
+    confidence_score=0.82
+)
+
+
+This emits runtime evidence instantly.
+
+9. Integration Requirements
+Minimum Integration Effort
+
+AI teams only need:
+
+a decision identifier
+
+model identity
+
+recommendation output
+
+Integration takes less than 5 minutes.
+
+10. Runtime Safety Guarantees
+
+The AI Runtime SDK follows strict safety rules:
+
+10.1 Non-Blocking Execution
+
+Events are emitted asynchronously.
+
+Inference latency impact is near zero.
+
+10.2 Fail-Safe Behavior
+
+If the ProVit server is down or unreachable:
+
+the SDK silently skips emission
+
+AI model execution continues normally
+
+The SDK must never raise runtime exceptions to the host system.
+
+10.3 No Enforcement
+
+The SDK does not:
+
+block decisions
+
+enforce policies
+
+interrupt workflows
+
+It only captures evidence.
+
+11. Transport Layer (MVP)
+
+The SDK sends events to ProVit via REST:
+
+Endpoint
+POST /v1/events
+
+Authentication
+Authorization: Bearer <API_KEY>
+
+Timeout
+
+max request timeout: 2 seconds
+
+fire-and-forget mode
+
+12. Expected Output in ProVit Platform
+
+Once events are captured, ProVit can reconstruct:
+
+AI recommendation evidence per decision
+
+Model usage patterns
+
+Confidence distribution
+
+Missing evidence gaps
+
+This becomes the foundation for:
+
+decision reconstruction
+
+human oversight tracking
+
+audit evidence packs
+
+automation creep detection
+
+13. Definition of Done (AI Runtime SDK v0)
+
+The SDK is complete when:
+
+✅ AI runtime recommendation events can be emitted
+✅ Model identity is captured
+✅ Confidence score is stored
+✅ Events are decision-scoped
+✅ SDK never blocks or crashes AI execution
+✅ Works across any AI model system
+
+14. Future Extensions (Not in v0)
+
+Later versions will add:
+
+explanations
+
+prompt + feature hashes
+
+policy expectation hooks
+
+retry buffers
+
+multi-language SDKs
+
+But v0 remains intentionally minimal.
+
+✅ Summary
+
+ProVit AI Runtime SDK v0 provides the first enterprise-grade primitive for AI governance:
+
+“At runtime, capture what the AI recommended, under which model identity, for which decision — safely and non-intrusively.”
+
+This is the foundation of ProVit’s Decision Evidence Platform.
